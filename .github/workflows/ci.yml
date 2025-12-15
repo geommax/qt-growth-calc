@@ -1,0 +1,93 @@
+name: CI Build
+
+on:
+  # push:
+  #   branches: [ main, develop ]
+  # pull_request:
+  #   branches: [ main, develop ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build and Test
+    runs-on: ubuntu-22.04
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential cmake
+
+    - name: Create build directory
+      run: mkdir -p build
+
+    - name: Configure CMake
+      run: |
+        cd build
+        cmake .. -DCMAKE_BUILD_TYPE=Release
+
+    - name: Build
+      run: |
+        cd build
+        cmake --build . --config Release -j$(nproc)
+
+    - name: Verify executable
+      run: |
+        cd build
+        if [ ! -f growth_calc ]; then
+          echo "Error: growth_calc executable not found"
+          exit 1
+        fi
+        file growth_calc
+        ls -lh growth_calc
+
+    - name: Test execution with command-line args
+      run: |
+        cd build
+        ./growth_calc 2 5
+        if [ $? -ne 0 ]; then
+          echo "Error: Application failed to run with command-line args"
+          exit 1
+        fi
+
+    - name: Test execution with config file
+      run: |
+        cd build
+        ./growth_calc --config ../config.txt
+        if [ $? -ne 0 ]; then
+          echo "Error: Application failed to run with config file"
+          exit 1
+        fi
+
+
+    - name: Test error handling (invalid args)
+      run: |
+        cd build
+        ./growth_calc invalid args || echo "Expected failure: Invalid arguments handled correctly"
+
+    - name: Check log file creation
+      run: |
+        if [ -d logs ]; then
+          echo "Logs directory created successfully"
+          ls -la logs/
+          cat logs/growth_calc.log
+        fi
+
+    - name: Strip binary
+      run: |
+        cd build
+        strip growth_calc || echo "Strip not available or failed"
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: growth_calc-ubuntu-22.04
+        path: |
+          config.txt
+          growth_calc.service
+          build/growth_calc
+          logs/growth_calc.log
+        retention-days: 1

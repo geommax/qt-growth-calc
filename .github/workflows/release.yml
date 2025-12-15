@@ -1,0 +1,133 @@
+name: Release Build
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  release:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., v1.0.0)'
+        required: false
+        default: 'v0.0.0-dev'
+
+permissions:
+  contents: write #read and write to the repository's source code, commits, tags, and releases.
+  packages: write #Permission to publish and delete packages.
+
+jobs:
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      version: ${{ steps.get_version.outputs.version }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Get version
+      id: get_version
+      run: |
+        if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+          echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+        elif [ "${{ github.ref_type }}" == "tag" ]; then
+          echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        else
+          echo "version=v0.0.0-${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Create Release
+      id: create_release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ steps.get_version.outputs.version }}
+        name: Growth Calculator ${{ steps.get_version.outputs.version }}
+        body: |
+          ## Growth Pattern Calculator Release
+          
+          ### Features
+          - Standalone C++ application for growth pattern calculations
+          - Linear and exponential growth demonstrations
+          - Multithreaded execution with precise timing
+          - Comprehensive logging capabilities
+          
+          ### Supported Platforms
+          - Linux (Ubuntu 22.04+)
+          
+          ### Installation
+          Download the appropriate binary for your platform below.
+          
+          ### Usage
+          ```bash
+          # Using config file
+          ./growth_calc --config config.txt
+          
+          # Using command-line arguments
+          ./growth_calc <base> <exponent>
+          ```
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-release:
+    name: Build Release
+    needs: create-release
+    runs-on: ubuntu-22.04
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential cmake
+
+    - name: Create build directory
+      run: mkdir -p build
+
+    - name: Configure CMake
+      run: |
+        cd build
+        cmake .. -DCMAKE_BUILD_TYPE=Release
+
+    - name: Build
+      run: |
+        cd build
+        cmake --build . --config Release -j$(nproc)
+
+    - name: Strip binary
+      run: |
+        cd build
+        strip growth_calc || echo "Strip not available or failed"
+
+    - name: Package release
+      run: |
+        mkdir -p release
+        cp build/growth_calc release/
+        cp config.txt release/
+        cp README.md release/
+        cp growth_calc.service release/ 2>/dev/null || echo "Service file not found"
+        chmod +x release/growth_calc
+        cd release
+        tar -czf growth_calc-linux-x86_64.tar.gz *
+        mv growth_calc-linux-x86_64.tar.gz ..
+
+    - name: Upload Release Asset
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ needs.create-release.outputs.version }}
+        files: ./growth_calc-linux-x86_64.tar.gz
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-growth_calc-linux-x86_64
+        path: release/
+        retention-days: 1

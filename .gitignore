@@ -1,0 +1,43 @@
+# Compiled executables
+growth_calc
+*.out
+*.exe
+
+# Build directories
+build/
+cmake-build-*/
+
+# CMake generated files (keep CMakeLists.txt)
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+
+# Object files
+*.o
+*.obj
+*.a
+*.so
+
+# Log files (optional - uncomment to track logs in git)
+logs/*.log
+
+# Keep logs directory in git
+!logs/.gitkeep
+
+# Temporary files
+*.tmp
+*.bak
+*~
+*.swp
+*.swo
+
+# IDE and editor files
+.vscode/
+.idea/
+*.code-workspace
+
+# OS files
+.DS_Store
+Thumbs.db
+.directory
